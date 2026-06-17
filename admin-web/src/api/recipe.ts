@@ -35,22 +35,30 @@ export interface RecipeStep {
     timerMinutes: number
 }
 
-/** 获取推荐菜品列表 */
 export function getRecommendedRecipes() {
     return http.get<ApiResult<Recipe[]>>('/recommend/recipes')
 }
 
-/** 获取菜品详情 */
 export function getRecipeDetail(id: number) {
     return http.get<ApiResult<Recipe>>(`/recipe/${id}`)
 }
 
-/** 搜索菜品 */
 export function searchRecipes(query: string) {
     return http.get<ApiResult<Recipe[]>>('/recipe/search', { params: { q: query } })
 }
 
-/** AI 生成菜谱 */
 export function aiGenerateRecipe(dishName: string, ingredients?: string) {
     return http.post<ApiResult<any>>('/recipe/ai/generate', { dishName, availableIngredients: ingredients })
+}
+
+/** 获取所有食材列表 */
+export function getAllIngredients() {
+    return http.get<ApiResult<any[]>>('/ingredients/list')
+}
+
+/** 按食材搜索菜谱 */
+export function searchRecipesByIngredients(ids: number[], matchMode?: string) {
+    return http.get<ApiResult<any[]>>('/recipe/by-ingredients', {
+        params: { ids: ids.join(','), matchMode: matchMode || 'any' }
+    })
 }

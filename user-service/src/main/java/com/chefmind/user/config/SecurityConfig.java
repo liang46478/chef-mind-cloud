@@ -34,7 +34,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 认证接口和用餐记录接口不需要登录
-                .requestMatchers("/api/user/auth/**", "/api/user/meal-records/**").permitAll()
+                .requestMatchers("/api/user/auth/**", "/api/user/meal-records/**", "/api/user/page").permitAll()
                 // 其他接口需要认证
                 .anyRequest().authenticated()
             )

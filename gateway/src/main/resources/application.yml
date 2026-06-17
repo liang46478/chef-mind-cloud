@@ -7,27 +7,22 @@ spring:
   cloud:
     gateway:
       routes:
-        # 用户服务
         - id: user-service
           uri: lb://user-service
           predicates:
             - Path=/api/user/**
-        # 菜谱服务
         - id: recipe-service
           uri: lb://recipe-service
           predicates:
-            - Path=/api/recipe/**,/api/upload/**
-        # 餐食计划服务
+            - Path=/api/recipe/**,/api/upload/**,/api/ingredients/**
         - id: meal-plan-service
           uri: lb://meal-plan-service
           predicates:
             - Path=/api/meal-plan/**
-        # 推荐服务
         - id: recommendation-service
           uri: lb://recommendation-service
           predicates:
             - Path=/api/recommend/**
-        # 管理后台服务
         - id: admin-service
           uri: lb://admin-service
           predicates:

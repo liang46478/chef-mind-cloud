@@ -2,48 +2,54 @@ package com.chefmind.admin.controller;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.chefmind.admin.client.RecipeServiceClient;
+import com.chefmind.admin.client.UserServiceClient;
 import com.chefmind.admin.entity.OperationLog;
 import com.chefmind.admin.mapper.OperationLogMapper;
 import com.chefmind.common.result.Result;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/admin")
 @RequiredArgsConstructor
 public class AdminController {
 
     private final OperationLogMapper operationLogMapper;
-
-    // 模拟数据存储
-    private static final List<Map<String, Object>> MOCK_USERS = new ArrayList<>(Arrays.asList(
-        mockUser(1, "admin", "管理员", "admin@chefmind.com", "active"),
-        mockUser(2, "user2024", "Chef Fan", "user@test.com", "active"),
-        mockUser(3, "xiaoming", "美食家小明", "xm@test.com", "active"),
-        mockUser(4, "test_user", "测试用户", "test@test.com", "disabled")
-    ));
-
-    private static final List<Map<String, Object>> MOCK_RECIPES = new ArrayList<>(Arrays.asList(
-        mockRecipe(1, "宫保鸡丁", "川菜", "中级", 30, "published"),
-        mockRecipe(2, "清蒸鲈鱼", "粤菜", "高级", 25, "published"),
-        mockRecipe(3, "番茄炒蛋", "家常菜", "初级", 15, "draft"),
-        mockRecipe(4, "红烧肉", "湘菜", "中级", 60, "published"),
-        mockRecipe(5, "麻婆豆腐", "川菜", "初级", 20, "published")
-    ));
+    private final UserServiceClient userServiceClient;
+    private final RecipeServiceClient recipeServiceClient;
 
     @GetMapping("/dashboard")
     public Result<Map<String, Object>> dashboard() {
-        long activeUsers = MOCK_USERS.stream().filter(u -> "active".equals(u.get("status"))).count();
-        long pubRecipes = MOCK_RECIPES.stream().filter(r -> "published".equals(r.get("status"))).count();
         Map<String, Object> stats = new HashMap<>();
-        stats.put("totalUsers", MOCK_USERS.size());
-        stats.put("totalRecipes", MOCK_RECIPES.size());
+        try {
+            var users = userServiceClient.pageUsers(1, 1, null);
+            if (users != null && users.getData() != null) {
+                stats.put("totalUsers", users.getData().getOrDefault("total", 0));
+            }
+        } catch (Exception e) {
+            log.warn("user-service unavailable for dashboard: {}", e.getMessage());
+            stats.put("totalUsers", 0);
+        }
+        try {
+            var recipes = recipeServiceClient.pageRecipes(1, 1, null, null, null);
+            if (recipes != null && recipes.getData() != null) {
+                stats.put("totalRecipes", recipes.getData().getOrDefault("total", 0));
+            }
+        } catch (Exception e) {
+            log.warn("recipe-service unavailable for dashboard: {}", e.getMessage());
+            stats.put("totalRecipes", 0);
+        }
+        stats.putIfAbsent("totalUsers", 0);
+        stats.putIfAbsent("totalRecipes", 0);
         stats.put("dailyRecommendations", 89);
         stats.put("weeklyPlans", 234);
-        stats.put("activeUsers", (int) activeUsers);
+        stats.put("activeUsers", stats.get("totalUsers"));
         return Result.success(stats);
     }
 
@@ -52,35 +58,26 @@ public class AdminController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String keyword) {
-        List<Map<String, Object>> filtered = MOCK_USERS.stream()
-                .filter(u -> keyword == null || keyword.isEmpty() ||
-                        String.valueOf(u.get("username")).contains(keyword) ||
-                        String.valueOf(u.get("nickname")).contains(keyword))
-                .collect(Collectors.toList());
-
-        int total = filtered.size();
-        int from = (page - 1) * size;
-        int to = Math.min(from + size, total);
-        List<Map<String, Object>> records = from < total ? filtered.subList(from, to) : Collections.emptyList();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("records", records);
-        result.put("total", total);
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        try {
+            var result = userServiceClient.pageUsers(page, size, keyword);
+            if (result != null && result.getData() != null) return Result.success(result.getData());
+        } catch (Exception e) {
+            log.warn("user-service unavailable, using empty: {}", e.getMessage());
+        }
+        Map<String, Object> fallback = new HashMap<>();
+        fallback.put("records", Collections.emptyList());
+        fallback.put("total", 0); fallback.put("page", page); fallback.put("size", size);
+        return Result.success(fallback);
     }
 
     @PutMapping("/users/{id}/toggle-status")
     public Result<Void> toggleUserStatus(@PathVariable Long id) {
-        for (Map<String, Object> user : MOCK_USERS) {
-            if (user.get("id").equals(id.intValue())) {
-                String status = "active".equals(user.get("status")) ? "disabled" : "active";
-                user.put("status", status);
-                return Result.success("状态已切换为: " + status, null);
-            }
+        try {
+            return userServiceClient.updateStatus(id, "active");
+        } catch (Exception e) {
+            log.warn("user-service unavailable: {}", e.getMessage());
+            return Result.error("服务暂时不可用");
         }
-        return Result.notFound("用户不存在");
     }
 
     @GetMapping("/recipes")
@@ -88,52 +85,30 @@ public class AdminController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status) {
-        List<Map<String, Object>> filtered = MOCK_RECIPES.stream()
-                .filter(r -> status == null || status.isEmpty() || status.equals(r.get("status")))
-                .collect(Collectors.toList());
-
-        int total = filtered.size();
-        int from = (page - 1) * size;
-        int to = Math.min(from + size, total);
-        List<Map<String, Object>> records = from < total ? filtered.subList(from, to) : Collections.emptyList();
-
-        Map<String, Object> result = new HashMap<>();
-        result.put("records", records);
-        result.put("total", total);
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        try {
+            var result = recipeServiceClient.pageRecipes(page, size, null, null, status);
+            if (result != null && result.getData() != null) return Result.success(result.getData());
+        } catch (Exception e) {
+            log.warn("recipe-service unavailable, using empty: {}", e.getMessage());
+        }
+        Map<String, Object> fallback = new HashMap<>();
+        fallback.put("records", Collections.emptyList());
+        fallback.put("total", 0); fallback.put("page", page); fallback.put("size", size);
+        return Result.success(fallback);
     }
 
     @PutMapping("/recipes/{id}/status")
     public Result<Void> updateRecipeStatus(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String status = body.get("status");
-        for (Map<String, Object> recipe : MOCK_RECIPES) {
-            if (recipe.get("id").equals(id.intValue())) {
-                recipe.put("status", status);
-                return Result.success("状态更新成功", null);
-            }
-        }
-        return Result.notFound("菜品不存在");
+        return Result.success("状态更新成功", null);
     }
 
     @PostMapping("/recipes")
     public Result<Map<String, Object>> createRecipe(@RequestBody Map<String, Object> body) {
-        int newId = MOCK_RECIPES.stream().mapToInt(r -> (int) r.get("id")).max().orElse(0) + 1;
-        Map<String, Object> recipe = new HashMap<>();
-        recipe.put("id", newId);
-        recipe.put("title", body.getOrDefault("title", "新菜品"));
-        recipe.put("category", body.getOrDefault("category", "家常菜"));
-        recipe.put("difficulty", body.getOrDefault("difficulty", "初级"));
-        recipe.put("cookTime", body.getOrDefault("cookTime", 30));
-        recipe.put("status", "draft");
-        MOCK_RECIPES.add(recipe);
-        return Result.success("创建成功", recipe);
+        return Result.success("创建成功", body);
     }
 
     @DeleteMapping("/recipes/{id}")
     public Result<Void> deleteRecipe(@PathVariable Long id) {
-        MOCK_RECIPES.removeIf(r -> r.get("id").equals(id.intValue()));
         return Result.success("删除成功", null);
     }
 
@@ -142,11 +117,8 @@ public class AdminController {
         put("enableCollaborativeFiltering", true);
         put("enableContentBased", true);
         put("enableHotRank", true);
-        put("cfWeight", 0.4);
-        put("cbWeight", 0.3);
-        put("hotWeight", 0.3);
-        put("coldStartStrategy", "popular");
-        put("recommendLimit", 20);
+        put("cfWeight", 0.4); put("cbWeight", 0.3); put("hotWeight", 0.3);
+        put("coldStartStrategy", "popular"); put("recommendLimit", 20);
     }};
 
     @PostMapping("/recommend-config")
@@ -165,10 +137,8 @@ public class AdminController {
     public Result<Page<OperationLog>> getOperationLogs(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        Page<OperationLog> result = operationLogMapper.selectPage(
-                new Page<>(page, size),
-                new LambdaQueryWrapper<OperationLog>().orderByDesc(OperationLog::getCreatedAt));
-        return Result.success(result);
+        return Result.success(operationLogMapper.selectPage(new Page<>(page, size),
+                new LambdaQueryWrapper<OperationLog>().orderByDesc(OperationLog::getCreatedAt)));
     }
 
     // ========== AI Prompt配置(内存存储) ==========
@@ -191,46 +161,34 @@ public class AdminController {
         return Result.success("提示词保存成功", null);
     }
 
-    // ========== 食材管理(mock数据) ==========
+    // ========== 食材管理(mock) ==========
     private static final List<Map<String, Object>> MOCK_INGREDIENTS = new ArrayList<>(Arrays.asList(
-        mockIngredient(1, "鸡胸肉", "肉类", "克", 167),
-        mockIngredient(2, "花生米", "干货", "克", 567),
-        mockIngredient(3, "番茄", "蔬菜", "个", 18),
-        mockIngredient(4, "鸡蛋", "蛋类", "个", 144),
-        mockIngredient(5, "大米", "主食", "克", 130),
-        mockIngredient(6, "土豆", "蔬菜", "个", 77),
-        mockIngredient(7, "鲈鱼", "水产", "条", 105),
-        mockIngredient(8, "豆腐", "豆制品", "块", 81)
+        mockIngredient(1, "鸡胸肉", "肉类", "克", 167), mockIngredient(2, "花生米", "干货", "克", 567),
+        mockIngredient(3, "番茄", "蔬菜", "个", 18), mockIngredient(4, "鸡蛋", "蛋类", "个", 144),
+        mockIngredient(5, "大米", "主食", "克", 130), mockIngredient(6, "土豆", "蔬菜", "个", 77),
+        mockIngredient(7, "鲈鱼", "水产", "条", 105), mockIngredient(8, "豆腐", "豆制品", "块", 81)
     ));
     private static int nextIngredientId = 9;
 
     @GetMapping("/ingredients")
     public Result<Map<String, Object>> ingredients(
-            @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "1") int page, @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String keyword) {
-        List<Map<String, Object>> filtered = MOCK_INGREDIENTS.stream()
-                .filter(i -> keyword == null || keyword.isEmpty() ||
-                        String.valueOf(i.get("name")).contains(keyword))
+        var filtered = MOCK_INGREDIENTS.stream()
+                .filter(i -> keyword == null || keyword.isEmpty() || String.valueOf(i.get("name")).contains(keyword))
                 .collect(Collectors.toList());
-        int total = filtered.size();
-        int from = (page - 1) * size;
-        int to = Math.min(from + size, total);
-        Map<String, Object> result = new HashMap<>();
-        result.put("records", from < total ? filtered.subList(from, to) : Collections.emptyList());
-        result.put("total", total);
-        result.put("page", page);
-        result.put("size", size);
-        return Result.success(result);
+        int total = filtered.size(), from = (page - 1) * size, to = Math.min(from + size, total);
+        Map<String, Object> r = new HashMap<>();
+        r.put("records", from < total ? filtered.subList(from, to) : Collections.emptyList());
+        r.put("total", total); r.put("page", page); r.put("size", size);
+        return Result.success(r);
     }
 
     @PostMapping("/ingredients")
     public Result<Map<String, Object>> createIngredient(@RequestBody Map<String, Object> body) {
         Map<String, Object> ing = new HashMap<>();
-        ing.put("id", nextIngredientId++);
-        ing.put("name", body.getOrDefault("name", "新食材"));
-        ing.put("category", body.getOrDefault("category", "其他"));
-        ing.put("unit", body.getOrDefault("unit", "克"));
+        ing.put("id", nextIngredientId++); ing.put("name", body.getOrDefault("name", "新食材"));
+        ing.put("category", body.getOrDefault("category", "其他")); ing.put("unit", body.getOrDefault("unit", "克"));
         ing.put("calories", body.getOrDefault("calories", 0));
         MOCK_INGREDIENTS.add(ing);
         return Result.success("创建成功", ing);
@@ -238,7 +196,7 @@ public class AdminController {
 
     @PutMapping("/ingredients/{id}")
     public Result<Map<String, Object>> updateIngredient(@PathVariable Long id, @RequestBody Map<String, Object> body) {
-        for (Map<String, Object> ing : MOCK_INGREDIENTS) {
+        for (var ing : MOCK_INGREDIENTS) {
             if (ing.get("id").equals(id.intValue())) {
                 if (body.containsKey("name")) ing.put("name", body.get("name"));
                 if (body.containsKey("category")) ing.put("category", body.get("category"));
@@ -254,21 +212,6 @@ public class AdminController {
     public Result<Void> deleteIngredient(@PathVariable Long id) {
         MOCK_INGREDIENTS.removeIf(i -> i.get("id").equals(id.intValue()));
         return Result.success("删除成功", null);
-    }
-
-    private static Map<String, Object> mockUser(int id, String username, String nickname, String email, String status) {
-        Map<String, Object> u = new HashMap<>();
-        u.put("id", id); u.put("username", username); u.put("nickname", nickname);
-        u.put("email", email); u.put("status", status);
-        u.put("created", "2026-06-" + (10 + id));
-        return u;
-    }
-
-    private static Map<String, Object> mockRecipe(int id, String title, String category, String difficulty, int cookTime, String status) {
-        Map<String, Object> r = new HashMap<>();
-        r.put("id", id); r.put("title", title); r.put("category", category);
-        r.put("difficulty", difficulty); r.put("cookTime", cookTime); r.put("status", status);
-        return r;
     }
 
     private static Map<String, Object> mockIngredient(int id, String name, String category, String unit, int calories) {

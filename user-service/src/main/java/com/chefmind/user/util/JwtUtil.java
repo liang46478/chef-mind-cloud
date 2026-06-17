@@ -2,72 +2,50 @@ package com.chefmind.user.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
 
-/**
- * JWT 工具类 - 生成和验证 Token
- */
 @Component
 public class JwtUtil {
 
-    // 使用固定密钥（生产环境应放在配置文件中）
-    private static final String SECRET_KEY_STRING = "chef-mind-cloud-jwt-secret-key-2026-very-long-secret-for-hs256";
-    private static final SecretKey SECRET_KEY = Keys.hmacShaKeyFor(SECRET_KEY_STRING.getBytes(StandardCharsets.UTF_8));
-    private static final long EXPIRATION_MS = 7 * 24 * 60 * 60 * 1000L; // 7天
+    private final SecretKey secretKey;
+    private final long expirationMs;
 
-    /**
-     * 生成 JWT Token
-     */
+    public JwtUtil(@Value("${jwt.secret:chef-mind-cloud-jwt-secret-key-2026-very-long-secret-for-hs256}") String secret,
+                   @Value("${jwt.expiration:604800000}") long expirationMs) {
+        this.secretKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expirationMs = expirationMs;
+    }
+
     public String generateToken(Long userId, String username) {
         Date now = new Date();
-        Date expiration = new Date(now.getTime() + EXPIRATION_MS);
-
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim("username", username)
                 .issuedAt(now)
-                .expiration(expiration)
-                .signWith(SECRET_KEY)
+                .expiration(new Date(now.getTime() + expirationMs))
+                .signWith(secretKey)
                 .compact();
     }
 
-    /**
-     * 从 Token 中提取用户 ID
-     */
     public Long getUserIdFromToken(String token) {
-        Claims claims = parseToken(token);
-        return Long.parseLong(claims.getSubject());
+        return Long.parseLong(parseToken(token).getSubject());
     }
 
-    /**
-     * 从 Token 中提取用户名
-     */
     public String getUsernameFromToken(String token) {
-        Claims claims = parseToken(token);
-        return claims.get("username", String.class);
+        return parseToken(token).get("username", String.class);
     }
 
-    /**
-     * 验证 Token 是否有效
-     */
     public boolean validateToken(String token) {
-        try {
-            parseToken(token);
-            return true;
-        } catch (JwtException | IllegalArgumentException e) {
-            return false;
-        }
+        try { parseToken(token); return true; }
+        catch (JwtException | IllegalArgumentException e) { return false; }
     }
 
     private Claims parseToken(String token) {
-        return Jwts.parser()
-                .verifyWith(SECRET_KEY)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
+        return Jwts.parser().verifyWith(secretKey).build().parseSignedClaims(token).getPayload();
     }
 }

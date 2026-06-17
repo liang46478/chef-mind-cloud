@@ -9,6 +9,7 @@ import InputText from 'primevue/inputtext'
 import Carousel from 'primevue/carousel'
 import Avatar from 'primevue/avatar'
 import ProgressSpinner from 'primevue/progressspinner'
+import IngredientSelector from '@/components/IngredientSelector.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
@@ -20,26 +21,15 @@ onMounted(async () => {
     try {
         const res = await getRecommendedRecipes()
         featuredRecipes.value = res.data.data || []
-    } catch {
-        featuredRecipes.value = []
-    } finally {
-        loading.value = false
-    }
+    } catch { featuredRecipes.value = [] }
+    finally { loading.value = false }
 })
 
-function goToDetail(id: number) {
-    router.push(`/recipe/${id}`)
-}
-
+function goToDetail(id: number) { router.push(`/recipe/${id}`) }
 function search() {
-    if (searchQuery.value.trim()) {
-        router.push(`/search?q=${encodeURIComponent(searchQuery.value.trim())}`)
-    }
+    if (searchQuery.value.trim()) router.push(`/search?q=${encodeURIComponent(searchQuery.value.trim())}`)
 }
-
-function logout() {
-    auth.logout()
-}
+function logout() { auth.logout() }
 </script>
 
 <template>
@@ -70,6 +60,12 @@ function logout() {
         </header>
 
         <main class="max-w-7xl mx-auto px-4 py-8">
+            <!-- 食材选择器 -->
+            <section class="mb-8">
+                <IngredientSelector />
+            </section>
+
+            <!-- 推荐菜品 -->
             <section class="mb-8">
                 <div class="flex items-center justify-between mb-4">
                     <h2 class="text-xl font-semibold text-gray-800">🔥 为你推荐</h2>
@@ -83,40 +79,34 @@ function logout() {
                                 <template #header>
                                     <img :src="slotProps.data.imageUrl || 'https://placehold.co/400x300/10b981/white?text=' + slotProps.data.title" :alt="slotProps.data.title" class="w-full h-48 object-cover" />
                                 </template>
-                                <template #title>
-                                    <span class="text-lg">{{ slotProps.data.title }}</span>
-                                </template>
+                                <template #title><span class="text-lg">{{ slotProps.data.title }}</span></template>
                                 <template #content>
                                     <div class="flex gap-2 text-sm text-gray-500">
                                         <span v-if="slotProps.data.cookTime">⏱ {{ slotProps.data.cookTime }}分钟</span>
                                         <span v-if="slotProps.data.difficulty">📊 {{ slotProps.data.difficulty }}</span>
+                                        <span v-if="slotProps.data.videoUrl" class="text-red-500">🎬 视频</span>
                                     </div>
                                 </template>
                             </Card>
                         </div>
                     </template>
                 </Carousel>
-                <p v-else class="text-gray-400 text-center py-8">暂无推荐菜品，快去发现美食吧！</p>
+                <p v-else class="text-gray-400 text-center py-8">暂无推荐菜品</p>
             </section>
 
+            <!-- 快捷入口 -->
             <section class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <Card class="cursor-pointer hover:border-emerald-500 transition-colors" @click="router.push('/meal-plan')">
                     <template #title>📋 用餐计划</template>
-                    <template #content>
-                        <p class="text-gray-600">AI 智能生成你的每周餐食计划，营养均衡每一天</p>
-                    </template>
+                    <template #content><p class="text-gray-600">AI 智能生成你的每周餐食计划，营养均衡每一天</p></template>
                 </Card>
                 <Card class="cursor-pointer hover:border-emerald-500 transition-colors" @click="router.push('/meal-records')">
                     <template #title>📝 就餐记录</template>
-                    <template #content>
-                        <p class="text-gray-600">记录每日饮食，让推荐越来越懂你的口味</p>
-                    </template>
+                    <template #content><p class="text-gray-600">记录每日饮食，让推荐越来越懂你的口味</p></template>
                 </Card>
                 <Card class="cursor-pointer hover:border-emerald-500 transition-colors" @click="router.push('/profile')">
                     <template #title>👤 个人中心</template>
-                    <template #content>
-                        <p class="text-gray-600">管理饮食偏好、过敏源和营养目标</p>
-                    </template>
+                    <template #content><p class="text-gray-600">管理饮食偏好、过敏源和营养目标</p></template>
                 </Card>
             </section>
         </main>

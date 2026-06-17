@@ -11,9 +11,10 @@ import com.chefmind.recipe.service.RecipeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * 菜谱 REST 控制器
- */
+import java.util.Arrays;
+import java.util.List;
+import java.util.stream.Collectors;
+
 @RestController
 @RequestMapping("/api/recipe")
 @RequiredArgsConstructor
@@ -34,9 +35,7 @@ public class RecipeController {
     @GetMapping("/{id}")
     public Result<Recipe> detail(@PathVariable Long id) {
         Recipe recipe = recipeService.getRecipeDetail(id);
-        if (recipe == null) {
-            return Result.notFound("菜谱不存在");
-        }
+        if (recipe == null) return Result.notFound("菜谱不存在");
         return Result.success(recipe);
     }
 
@@ -81,5 +80,17 @@ public class RecipeController {
     @GetMapping("/search")
     public Result<?> search(@RequestParam String q) {
         return Result.success(recipeService.searchRecipes(q));
+    }
+
+    @GetMapping("/by-ingredients")
+    public Result<?> searchByIngredients(
+            @RequestParam String ids,
+            @RequestParam(defaultValue = "any") String matchMode) {
+        List<Long> ingredientIds = Arrays.stream(ids.split(","))
+                .map(String::trim).filter(s -> !s.isEmpty()).map(Long::parseLong).collect(Collectors.toList());
+        if (ingredientIds.isEmpty()) {
+            return Result.error(400, "请至少选择一种食材");
+        }
+        return Result.success(recipeService.searchByIngredients(ingredientIds, matchMode));
     }
 }

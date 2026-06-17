@@ -18,12 +18,18 @@ public class UserController {
 
     private final UserService userService;
 
+    @GetMapping("/page")
+    public Result<IPage<User>> page(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword) {
+        return Result.success(userService.pageUsers(new Page<>(page, size), keyword));
+    }
+
     @GetMapping("/{id}")
     public Result<User> getById(@PathVariable Long id) {
         User user = userService.getUserById(id);
-        if (user == null) {
-            return Result.notFound("用户不存在");
-        }
+        if (user == null) return Result.notFound("用户不存在");
         return Result.success(user);
     }
 
