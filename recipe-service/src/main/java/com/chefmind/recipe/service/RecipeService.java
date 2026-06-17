@@ -22,7 +22,6 @@ public interface RecipeService {
     List<RecipeIngredient> getIngredients(Long recipeId);
     List<RecipeCategory> listCategories();
     List<Recipe> searchRecipes(String keyword);
-
-    /** 按食材ID搜索菜谱 */
     List<Map<String, Object>> searchByIngredients(List<Long> ingredientIds, String matchMode);
+    List<Map<String, Object>> getAllIngredients();
 }

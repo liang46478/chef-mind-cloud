@@ -62,3 +62,8 @@ export function searchRecipesByIngredients(ids: number[], matchMode?: string) {
         params: { ids: ids.join(','), matchMode: matchMode || 'any' }
     })
 }
+
+/** AI 根据食材生成菜谱 */
+export function aiGenerateByIngredients(ingredients: string[]) {
+    return http.post<ApiResult<any>>('/recipe/ai/by-ingredients', { ingredients })
+}

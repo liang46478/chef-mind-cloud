@@ -8,10 +8,12 @@ import com.chefmind.recipe.entity.Recipe;
 import com.chefmind.recipe.entity.RecipeCategory;
 import com.chefmind.recipe.entity.RecipeIngredient;
 import com.chefmind.recipe.entity.RecipeStep;
+import com.chefmind.recipe.entity.Ingredient;
 import com.chefmind.recipe.mapper.RecipeMapper;
 import com.chefmind.recipe.mapper.RecipeCategoryMapper;
 import com.chefmind.recipe.mapper.RecipeStepMapper;
 import com.chefmind.recipe.mapper.RecipeIngredientMapper;
+import com.chefmind.recipe.mapper.IngredientMapper;
 import com.chefmind.recipe.service.RecipeService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -29,6 +31,7 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeMapper, Recipe> impleme
     private final RecipeCategoryMapper categoryMapper;
     private final RecipeStepMapper stepMapper;
     private final RecipeIngredientMapper ingredientMapper;
+    private final IngredientMapper simpleIngredientMapper;
 
     @Override
     public IPage<Recipe> pageRecipes(Page<Recipe> page, String keyword, String cuisineType, String status) {
@@ -95,6 +98,13 @@ public class RecipeServiceImpl extends ServiceImpl<RecipeMapper, Recipe> impleme
         return recipeMapper.selectList(new LambdaQueryWrapper<Recipe>()
                 .like(Recipe::getTitle, keyword).or().like(Recipe::getDescription, keyword)
                 .eq(Recipe::getStatus, "published").last("LIMIT 20"));
+    }
+
+    @Override
+    public List<Map<String, Object>> getAllIngredients() {
+        return simpleIngredientMapper.selectMaps(new LambdaQueryWrapper<Ingredient>()
+                .select(Ingredient::getId, Ingredient::getName, Ingredient::getCategory)
+                .orderByAsc(Ingredient::getCategory).orderByAsc(Ingredient::getName));
     }
 
     @Override
