@@ -1,0 +1,15 @@
+server:
+  port: 8082
+
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/chefmind_recipe
+    username: postgres
+    password: postgres
+  data:
+    redis:
+      host: redis
+  cloud:
+    nacos:
+      discovery:
+        server-addr: nacos:8848

@@ -1,0 +1,33 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: recipe-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/chefmind_recipe
+    username: postgres
+    password: postgres
+    driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.chefmind.recipe.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+logging:
+  level:
+    com.chefmind: DEBUG
