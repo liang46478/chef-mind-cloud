@@ -52,3 +52,8 @@ export function savePrompt(promptType: string, content: string) {
 export function getPrompt(promptType: string) {
     return http.get<ApiResult<string>>('/admin/prompts', { params: { type: promptType } })
 }
+
+/** 获取食材列表 */
+export function getIngredients(params?: { page?: number; pageSize?: number; keyword?: string }) {
+    return http.get<ApiResult<{ records: any[]; total: number }>>('/admin/ingredients', { params })
+}

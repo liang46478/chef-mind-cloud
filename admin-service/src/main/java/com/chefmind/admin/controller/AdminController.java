@@ -137,25 +137,30 @@ public class AdminController {
         return Result.success("删除成功", null);
     }
 
+    // ========== 推荐配置(内存存储) ==========
+    private final Map<String, Object> recommendConfigStore = new HashMap<>() {{
+        put("enableCollaborativeFiltering", true);
+        put("enableContentBased", true);
+        put("enableHotRank", true);
+        put("cfWeight", 0.4);
+        put("cbWeight", 0.3);
+        put("hotWeight", 0.3);
+        put("coldStartStrategy", "popular");
+        put("recommendLimit", 20);
+    }};
+
     @PostMapping("/recommend-config")
     public Result<Void> saveRecommendConfig(@RequestBody Map<String, Object> config) {
+        recommendConfigStore.putAll(config);
         return Result.success("配置保存成功", null);
     }
 
     @GetMapping("/recommend-config")
     public Result<Map<String, Object>> getRecommendConfig() {
-        Map<String, Object> config = new HashMap<>();
-        config.put("enableCollaborativeFiltering", true);
-        config.put("enableContentBased", true);
-        config.put("enableHotRank", true);
-        config.put("cfWeight", 0.4);
-        config.put("cbWeight", 0.3);
-        config.put("hotWeight", 0.3);
-        config.put("coldStartStrategy", "popular");
-        config.put("recommendLimit", 20);
-        return Result.success(config);
+        return Result.success(new HashMap<>(recommendConfigStore));
     }
 
+    // ========== 操作日志 ==========
     @GetMapping("/operation-logs")
     public Result<Page<OperationLog>> getOperationLogs(
             @RequestParam(defaultValue = "1") int page,
@@ -166,17 +171,89 @@ public class AdminController {
         return Result.success(result);
     }
 
+    // ========== AI Prompt配置(内存存储) ==========
+    private final Map<String, String> promptStore = new HashMap<>() {{
+        put("meal-plan", "你是一个专业的营养师和厨师。请根据用户的以下信息生成一周的餐食计划：\n\n口味偏好：{cuisine_preference}\n忌口/过敏源：{allergens}\n健康目标：{health_goal}\n\n请生成每日三餐安排，包含菜品名称、营养说明。");
+        put("recipe", "请根据以下信息生成详细的菜谱：\n\n菜名：{meal}\n可用食材：{ingredients}\n烹饪时间：{cooking_time}\n\n要求包含食材清单、烹饪步骤、所需时间和火力建议。");
+        put("substitution", "请为菜品中的指定食材提供替代建议，包括替代比例和口味变化说明。");
+    }};
+
     @GetMapping("/prompts")
     public Result<?> getPrompt(@RequestParam String type) {
-        Map<String, String> defaultPrompts = new HashMap<>();
-        defaultPrompts.put("meal-plan", "你是一个专业的营养师和厨师。请根据用户的以下信息生成一周的餐食计划...");
-        defaultPrompts.put("recipe", "请根据以下信息生成详细的菜谱，包含食材清单、烹饪步骤和建议...");
-        return Result.success(defaultPrompts.getOrDefault(type, ""));
+        return Result.success(promptStore.getOrDefault(type, ""));
     }
 
     @PostMapping("/prompts")
     public Result<Void> savePrompt(@RequestBody Map<String, String> body) {
+        if (body.containsKey("type") && body.containsKey("content")) {
+            promptStore.put(body.get("type"), body.get("content"));
+        }
         return Result.success("提示词保存成功", null);
+    }
+
+    // ========== 食材管理(mock数据) ==========
+    private static final List<Map<String, Object>> MOCK_INGREDIENTS = new ArrayList<>(Arrays.asList(
+        mockIngredient(1, "鸡胸肉", "肉类", "克", 167),
+        mockIngredient(2, "花生米", "干货", "克", 567),
+        mockIngredient(3, "番茄", "蔬菜", "个", 18),
+        mockIngredient(4, "鸡蛋", "蛋类", "个", 144),
+        mockIngredient(5, "大米", "主食", "克", 130),
+        mockIngredient(6, "土豆", "蔬菜", "个", 77),
+        mockIngredient(7, "鲈鱼", "水产", "条", 105),
+        mockIngredient(8, "豆腐", "豆制品", "块", 81)
+    ));
+    private static int nextIngredientId = 9;
+
+    @GetMapping("/ingredients")
+    public Result<Map<String, Object>> ingredients(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String keyword) {
+        List<Map<String, Object>> filtered = MOCK_INGREDIENTS.stream()
+                .filter(i -> keyword == null || keyword.isEmpty() ||
+                        String.valueOf(i.get("name")).contains(keyword))
+                .collect(Collectors.toList());
+        int total = filtered.size();
+        int from = (page - 1) * size;
+        int to = Math.min(from + size, total);
+        Map<String, Object> result = new HashMap<>();
+        result.put("records", from < total ? filtered.subList(from, to) : Collections.emptyList());
+        result.put("total", total);
+        result.put("page", page);
+        result.put("size", size);
+        return Result.success(result);
+    }
+
+    @PostMapping("/ingredients")
+    public Result<Map<String, Object>> createIngredient(@RequestBody Map<String, Object> body) {
+        Map<String, Object> ing = new HashMap<>();
+        ing.put("id", nextIngredientId++);
+        ing.put("name", body.getOrDefault("name", "新食材"));
+        ing.put("category", body.getOrDefault("category", "其他"));
+        ing.put("unit", body.getOrDefault("unit", "克"));
+        ing.put("calories", body.getOrDefault("calories", 0));
+        MOCK_INGREDIENTS.add(ing);
+        return Result.success("创建成功", ing);
+    }
+
+    @PutMapping("/ingredients/{id}")
+    public Result<Map<String, Object>> updateIngredient(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        for (Map<String, Object> ing : MOCK_INGREDIENTS) {
+            if (ing.get("id").equals(id.intValue())) {
+                if (body.containsKey("name")) ing.put("name", body.get("name"));
+                if (body.containsKey("category")) ing.put("category", body.get("category"));
+                if (body.containsKey("unit")) ing.put("unit", body.get("unit"));
+                if (body.containsKey("calories")) ing.put("calories", body.get("calories"));
+                return Result.success("更新成功", ing);
+            }
+        }
+        return Result.notFound("食材不存在");
+    }
+
+    @DeleteMapping("/ingredients/{id}")
+    public Result<Void> deleteIngredient(@PathVariable Long id) {
+        MOCK_INGREDIENTS.removeIf(i -> i.get("id").equals(id.intValue()));
+        return Result.success("删除成功", null);
     }
 
     private static Map<String, Object> mockUser(int id, String username, String nickname, String email, String status) {
@@ -192,5 +269,12 @@ public class AdminController {
         r.put("id", id); r.put("title", title); r.put("category", category);
         r.put("difficulty", difficulty); r.put("cookTime", cookTime); r.put("status", status);
         return r;
+    }
+
+    private static Map<String, Object> mockIngredient(int id, String name, String category, String unit, int calories) {
+        Map<String, Object> i = new HashMap<>();
+        i.put("id", id); i.put("name", name); i.put("category", category);
+        i.put("unit", unit); i.put("calories", calories);
+        return i;
     }
 }

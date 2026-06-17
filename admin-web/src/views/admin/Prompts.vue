@@ -1,28 +1,56 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { getPrompt, savePrompt } from '@/api/admin'
 import Card from 'primevue/card'
 import Textarea from 'primevue/textarea'
 import Button from 'primevue/button'
 import Dropdown from 'primevue/dropdown'
+import Message from 'primevue/message'
 
-const selectedPrompt = ref('meal-plan')
+const selectedType = ref('meal-plan')
 const promptTypes = [
     { label: '用餐计划生成', value: 'meal-plan' },
     { label: '菜谱生成', value: 'recipe' },
     { label: '食材替换建议', value: 'substitution' },
 ]
 
-const promptContent = ref(`你是一个专业的营养师和厨师。请根据用户的以下信息生成一周的餐食计划：
-- 口味偏好：{cuisine_preference}
-- 忌口/过敏源：{allergens}
-- 健康目标：{health_goal}
-- 历史就餐记录：{meal_history}
+const promptContent = ref('')
+const loading = ref(false)
+const saving = ref(false)
+const successMsg = ref('')
 
-请生成一日三餐的详细安排，包括菜品名称、简要做法和营养说明。`)
+onMounted(async () => {
+    await loadPrompt()
+})
 
-function savePrompt() {
-    // TODO: 调用 API 保存
-    console.log('Save prompt:', selectedPrompt.value, promptContent.value)
+async function loadPrompt() {
+    loading.value = true
+    try {
+        const res = await getPrompt(selectedType.value)
+        promptContent.value = res.data.data || ''
+    } catch {
+        promptContent.value = ''
+    } finally {
+        loading.value = false
+    }
+}
+
+async function switchType() {
+    await loadPrompt()
+}
+
+async function save() {
+    saving.value = true
+    successMsg.value = ''
+    try {
+        await savePrompt(selectedType.value, promptContent.value)
+        successMsg.value = '保存成功'
+        setTimeout(() => successMsg.value = '', 2000)
+    } catch {
+        successMsg.value = '保存失败'
+    } finally {
+        saving.value = false
+    }
 }
 </script>
 
@@ -35,13 +63,19 @@ function savePrompt() {
                 <div class="flex flex-col gap-4">
                     <div class="flex items-center gap-4">
                         <label class="font-medium">提示词类型:</label>
-                        <Dropdown v-model="selectedPrompt" :options="promptTypes" optionLabel="label" optionValue="value" />
+                        <Dropdown v-model="selectedType" :options="promptTypes" optionLabel="label" optionValue="value" @change="switchType" />
                     </div>
-                    <Textarea v-model="promptContent" rows="12" class="w-full font-mono" />
+
+                    <Message v-if="successMsg" :severity="successMsg === '保存成功' ? 'success' : 'error'" class="mb-2">
+                        {{ successMsg }}
+                    </Message>
+
+                    <Textarea v-model="promptContent" rows="15" class="w-full font-mono" :disabled="loading" />
                     <div class="text-sm text-gray-500 mb-2">
-                        可用变量: {cuisine_preference}, {allergens}, {health_goal}, {meal_history}
+                        可用变量: {cuisine_preference}, {allergens}, {health_goal}, {meal_history},
+                        {meal}, {ingredients}, {cooking_time}
                     </div>
-                    <Button label="保存配置" severity="success" @click="savePrompt" />
+                    <Button label="保存配置" severity="success" :loading="saving" @click="save" />
                 </div>
             </template>
         </Card>

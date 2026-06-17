@@ -97,4 +97,11 @@ public class MealPlanController {
         mealPlanService.updateItemStatus(itemId, status);
         return Result.success("更新成功", null);
     }
+
+    @GetMapping("/shopping-list")
+    public Result<List<Map<String, Object>>> getShoppingList(
+            @RequestParam(required = false, defaultValue = "1") Long userId,
+            @RequestParam(required = false) String planType) {
+        return Result.success(mealPlanService.generateShoppingList(userId, planType));
+    }
 }

@@ -4,6 +4,7 @@ import com.chefmind.mealplan.entity.MealPlan;
 import com.chefmind.mealplan.entity.MealPlanItem;
 
 import java.util.List;
+import java.util.Map;
 
 public interface MealPlanService {
 
@@ -20,4 +21,6 @@ public interface MealPlanService {
     MealPlan createPlan(MealPlan plan);
 
     void updateItemStatus(Long itemId, String status);
+
+    List<Map<String, Object>> generateShoppingList(Long userId, String planType);
 }

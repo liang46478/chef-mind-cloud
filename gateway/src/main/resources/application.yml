@@ -16,7 +16,7 @@ spring:
         - id: recipe-service
           uri: lb://recipe-service
           predicates:
-            - Path=/api/recipe/**
+            - Path=/api/recipe/**,/api/upload/**
         # 餐食计划服务
         - id: meal-plan-service
           uri: lb://meal-plan-service

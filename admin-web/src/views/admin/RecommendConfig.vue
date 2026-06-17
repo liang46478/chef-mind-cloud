@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+import { getRecommendConfig, saveRecommendConfig } from '@/api/admin'
 import Card from 'primevue/card'
 import InputNumber from 'primevue/inputnumber'
 import Button from 'primevue/button'
 import ToggleSwitch from 'primevue/toggleswitch'
+import Message from 'primevue/message'
+import ProgressSpinner from 'primevue/progressspinner'
 
+const loading = ref(true)
+const saving = ref(false)
+const successMsg = ref('')
 const config = ref({
     enableCollaborativeFiltering: true,
     enableContentBased: true,
@@ -16,9 +22,28 @@ const config = ref({
     recommendLimit: 20,
 })
 
-function saveConfig() {
-    // TODO: 调用 API 保存推荐策略
-    console.log('Save config:', config.value)
+onMounted(async () => {
+    try {
+        const res = await getRecommendConfig()
+        if (res.data.data) {
+            config.value = { ...config.value, ...res.data.data }
+        }
+    } catch { /* use defaults */ }
+    finally { loading.value = false }
+})
+
+async function saveConfig() {
+    saving.value = true
+    successMsg.value = ''
+    try {
+        await saveRecommendConfig(config.value)
+        successMsg.value = '配置保存成功'
+        setTimeout(() => successMsg.value = '', 2000)
+    } catch {
+        successMsg.value = '保存失败'
+    } finally {
+        saving.value = false
+    }
 }
 </script>
 
@@ -26,10 +51,15 @@ function saveConfig() {
     <div>
         <h1 class="text-2xl font-bold text-gray-800 mb-6">🎯 推荐策略配置</h1>
 
-        <Card>
+        <div v-if="loading" class="flex justify-center py-12"><ProgressSpinner /></div>
+
+        <Card v-else>
             <template #content>
+                <Message v-if="successMsg" :severity="successMsg === '配置保存成功' ? 'success' : 'error'" class="mb-4">
+                    {{ successMsg }}
+                </Message>
+
                 <div class="flex flex-col gap-6">
-                    <!-- 算法开关 -->
                     <div class="space-y-4">
                         <h3 class="font-semibold text-gray-700">推荐算法</h3>
                         <div class="flex items-center justify-between">
@@ -46,7 +76,6 @@ function saveConfig() {
                         </div>
                     </div>
 
-                    <!-- 权重配置 -->
                     <div class="space-y-4">
                         <h3 class="font-semibold text-gray-700">算法权重</h3>
                         <div class="grid grid-cols-3 gap-4">
@@ -65,20 +94,15 @@ function saveConfig() {
                         </div>
                     </div>
 
-                    <!-- 其他配置 -->
                     <div class="space-y-4">
                         <h3 class="font-semibold text-gray-700">其他设置</h3>
-                        <div>
-                            <label class="block text-sm mb-1">冷启动策略</label>
-                            <div class="text-sm text-gray-500">使用热门推荐为新用户服务</div>
-                        </div>
                         <div>
                             <label class="block text-sm mb-1">推荐数量上限</label>
                             <InputNumber v-model="config.recommendLimit" :min="5" :max="50" />
                         </div>
                     </div>
 
-                    <Button label="保存配置" severity="success" @click="saveConfig" class="w-40" />
+                    <Button label="保存配置" severity="success" :loading="saving" @click="saveConfig" class="w-40" />
                 </div>
             </template>
         </Card>

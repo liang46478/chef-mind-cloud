@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 
 @Slf4j
 @Service
@@ -128,6 +129,59 @@ public class MealPlanServiceImpl implements MealPlanService {
         item.setId(itemId);
         item.setStatus(status);
         mealPlanItemMapper.updateById(item);
+    }
+
+    @Override
+    public List<Map<String, Object>> generateShoppingList(Long userId, String planType) {
+        MealPlan plan = getCurrentPlan(userId, planType);
+        Map<String, List<String>> categoryItems = new LinkedHashMap<>();
+
+        if (plan != null) {
+            List<MealPlanItem> items = getPlanItems(plan.getId());
+            for (MealPlanItem item : items) {
+                String name = item.getRecipeName();
+                if (name == null) continue;
+                if (name.contains("鸡") || name.contains("鸭")) {
+                    categoryItems.computeIfAbsent("肉类", k -> new ArrayList<>());
+                    addIfNotContains(categoryItems.get("肉类"), name.contains("鸡") ? "鸡肉" : "鸭肉");
+                }
+                if (name.contains("鱼") || name.contains("虾")) {
+                    categoryItems.computeIfAbsent("水产", k -> new ArrayList<>());
+                    addIfNotContains(categoryItems.get("水产"), "鱼/虾");
+                }
+                if (name.contains("蛋")) {
+                    categoryItems.computeIfAbsent("蛋类", k -> new ArrayList<>());
+                    addIfNotContains(categoryItems.get("蛋类"), "鸡蛋");
+                }
+                if (name.contains("豆腐")) {
+                    categoryItems.computeIfAbsent("豆制品", k -> new ArrayList<>());
+                    addIfNotContains(categoryItems.get("豆制品"), "豆腐");
+                }
+                if (name.contains("米") || name.contains("饭")) {
+                    categoryItems.computeIfAbsent("主食", k -> new ArrayList<>());
+                    addIfNotContains(categoryItems.get("主食"), "大米");
+                }
+                if (name.contains("菜") || name.contains("蔬")) {
+                    categoryItems.computeIfAbsent("蔬菜", k -> new ArrayList<>());
+                    addIfNotContains(categoryItems.get("蔬菜"), "时令蔬菜");
+                }
+            }
+            categoryItems.computeIfAbsent("调味料", k -> new ArrayList<>());
+            addIfNotContains(categoryItems.get("调味料"), "盐、油、酱油");
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<String, List<String>> entry : categoryItems.entrySet()) {
+            Map<String, Object> group = new HashMap<>();
+            group.put("category", entry.getKey());
+            group.put("items", entry.getValue());
+            result.add(group);
+        }
+        return result;
+    }
+
+    private void addIfNotContains(List<String> list, String item) {
+        if (!list.contains(item)) list.add(item);
     }
 
     private List<Map<String, Object>> generateFallbackPlan() {
